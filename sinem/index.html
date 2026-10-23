@@ -243,6 +243,10 @@ function update(dt) {
   sinem.sayT -= dt;
   if (sinem.sayT <= 0 && sinem.at >= 0) teleport(-1, '', 0); // yerine geri isinlan
   sparks.forEach(p => p.t -= dt); sparks = sparks.filter(p => p.t > 0); pops.forEach(p => p.t -= dt); pops = pops.filter(p => p.t > 0);
+  if (state === 'caught') { // yakalandi: oyun donar, kisa "odama!" sahnesi, sonra bitis
+    if ((caughtT -= dt) <= 0) endGame();
+    return;
+  }
   if (state !== 'play') return;
   timeLeft -= dt;
   const prog = 1 - timeLeft / ROUND;
@@ -266,11 +270,14 @@ function update(dt) {
     const want = d.up > 0 || d.hitT > 0 ? 1 : 0;
     d.rise += (want - d.rise) * Math.min(1, dt * 14);
   }
-  if (timeLeft <= 0 || (lives <= 0 && !(boss && boss.yell > 0))) { // yakalaninca once "odama!" sahnesi
-    state = 'over'; boss = null; overAt = performance.now(); submitted = false;
-    if (score > best) { best = score; try { localStorage.setItem('sinemBest', best); } catch (e) {} }
-    if (score > 0 && isim) submit(); else loadLb();
-  }
+  if (timeLeft <= 0) endGame();
+}
+
+let caughtT = 0;
+function endGame() {
+  state = 'over'; boss = null; overAt = performance.now(); submitted = false;
+  if (score > best) { best = score; try { localStorage.setItem('sinemBest', best); } catch (e) {} }
+  if (score > 0 && isim) submit(); else loadLb();
 }
 
 function tap(x, y) {
@@ -283,13 +290,14 @@ function tap(x, y) {
     if (Math.abs(y - (H * .79 + 124)) < 18) { askName(); return; } // isim degistir
     start(); return;
   }
+  if (state !== 'play') return; // yakalandiktan sonra dokunus sayilmaz
   for (let i = 0; i < 4; i++) {
     const r = deskRect(i);
     if (x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h) continue;
     const d = desks[i];
     if (boss) {
       lives--; combo = 0; teleport(i, 'Pardon Gülçin Hanım!', 1.2);
-      boss.yell = 1.4; boss.t = Math.max(boss.t, 1.4);
+      boss.yell = 1.2; state = 'caught'; caughtT = 1.2;
       return;
     }
     if (d.up > 0 && d.hitT <= 0 && d.rise > .4) {
