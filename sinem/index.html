@@ -243,7 +243,8 @@ function update(dt) {
   sinem.sayT -= dt;
   if (sinem.sayT <= 0 && sinem.at >= 0) teleport(-1, '', 0); // yerine geri isinlan
   sparks.forEach(p => p.t -= dt); sparks = sparks.filter(p => p.t > 0); pops.forEach(p => p.t -= dt); pops = pops.filter(p => p.t > 0);
-  if (state === 'caught') { // yakalandi: oyun donar, kisa "odama!" sahnesi, sonra bitis
+  if (state === 'caught') { // yakalandi: herkes kafayi indirir, kisa "odama!" sahnesi, sonra bitis
+    for (const d of desks) { d.up = 0; d.hitT = 0; d.rise += (0 - d.rise) * Math.min(1, dt * 14); }
     if ((caughtT -= dt) <= 0) endGame();
     return;
   }
