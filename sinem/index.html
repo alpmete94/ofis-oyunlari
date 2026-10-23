@@ -42,6 +42,7 @@ function bubble(t, x, y, size, tailDown = true) {
   ctx.font = `bold ${size}px ${FONT}`;
   const w = Math.min(W * .9, ctx.measureText(t).width + size * 1.4), h = size * 2;
   x = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, x));
+  y = Math.max(y, 64 + h); // ust skor seridinin altinda kalmasin
   ctx.fillStyle = '#fff'; ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.roundRect(x - w / 2, y - h, w, h, h / 2); ctx.fill(); ctx.stroke();
   if (tailDown) { ctx.beginPath(); ctx.moveTo(x - 8, y - 1); ctx.lineTo(x, y + 10); ctx.lineTo(x + 8, y - 1); ctx.fill(); }
@@ -355,6 +356,7 @@ function draw(t) {
   }
   desks.forEach((d, i) => drawDesk(i, d, t));
   drawDividers();
+  hud();
   if (boss) {
     const bs = g.sinemH * .62, x = boss.side < 0 ? bs * .6 : W - bs * .6, by = g.floor - bs * .95;
     drawBoss(x, by, bs, Math.min(1, boss.t * 3));
@@ -368,7 +370,6 @@ function draw(t) {
   if ((sinem.sayT > .7 || sinem.at < 0 || !desks[sinem.at] || desks[sinem.at].hitT <= 0) && sinem.sayT > 0 && sinem.say) bubble(sinem.say, sp.x, sp.foot - sp.h - 6, Math.min(16, W / 22));
   drawSparks();
   pops.forEach(p => txt(p.text, p.x, p.y - (1 - p.t) * 30, 22, p.c));
-  hud();
   if (state === 'over') {
     ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(0, 0, W, H);
     const unvan = score < 150 ? 'Stajyer' : score < 400 ? 'Ofis Neşesi' : score < 800 ? 'Mesai Terörü' : 'Ofisin Kabusu';
