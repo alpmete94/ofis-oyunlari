@@ -198,7 +198,7 @@ function drawBoss(x, y, s, alpha) {
 }
 
 // --- oyun durumu ---
-let score = 0, best = 0, lives = 3, timeLeft = 60, combo = 0, desks = [], nextPop = 0, boss = null, pops = [], sinem = { at: -1, say: '', sayT: 0 };
+let score = 0, best = 0, lives = 1, timeLeft = 60, combo = 0, desks = [], nextPop = 0, boss = null, pops = [], sinem = { at: -1, say: '', sayT: 0 };
 try { best = +localStorage.getItem('sinemBest') || 0; } catch (e) {}
 const ROUND = 60;
 
@@ -214,7 +214,7 @@ function deskRect(i) {
 }
 
 function start() {
-  score = 0; lives = 3; timeLeft = ROUND; combo = 0; boss = null; pops = []; nextPop = .6;
+  score = 0; lives = 1; timeLeft = ROUND; combo = 0; boss = null; pops = []; nextPop = .6;
   desks = WORKERS.map(w => ({ w, rise: 0, up: 0, hitT: 0, say: '' }));
   sinem.at = -1; sinem.say = ''; sinem.sayT = 0; sparks = []; state = 'play';
 }
@@ -240,7 +240,7 @@ function update(dt) {
     const want = d.up > 0 || d.hitT > 0 ? 1 : 0;
     d.rise += (want - d.rise) * Math.min(1, dt * 14);
   }
-  if (timeLeft <= 0 || lives <= 0) {
+  if (timeLeft <= 0 || (lives <= 0 && !(boss && boss.yell > 0))) { // yakalaninca once "odama!" sahnesi
     state = 'over'; boss = null;
     if (score > best) { best = score; try { localStorage.setItem('sinemBest', best); } catch (e) {} }
   }
@@ -348,7 +348,7 @@ function draw(t) {
     txt('Ofisi rahatsız etme simülatörü', W / 2, H * .14 + 34, Math.min(18, W / 22), '#555', 'center', '600');
     drawSinem(W / 2, H * .72, Math.min(H * .45, W * .9), true);
     txt('Kafasını kaldıranı dürt!', W / 2, H * .79, Math.min(18, W / 22), '#333', 'center', '600');
-    txt('Gülçin Hanım bakarken dokunma.', W / 2, H * .79 + 26, Math.min(18, W / 22), '#c0392b', 'center', '600');
+    txt('Gülçin Hanım bakarken dokunma: tek can!', W / 2, H * .79 + 26, Math.min(18, W / 22), '#c0392b', 'center', '600');
     txt('Başlamak için dokun', W / 2, H * .79 + 70, 20, '#1e8449');
     if (best) txt('En iyi: ' + best, W / 2, H * .79 + 100, 16, '#555', 'center', '600');
     return;
