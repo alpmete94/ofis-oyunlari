@@ -257,8 +257,11 @@ function update(dt) {
     if (free.length) { const d = pick(free); d.up = d.upMax = 1.4 - .75 * prog; }
     nextPop = (1.0 - .5 * prog) * (.7 + Math.random() * .6);
   }
-  if (!boss && timeLeft < ROUND - 8 && Math.random() < dt * (.12 + .15 * prog)) boss = { t: 1.6 + Math.random() * 1.2, side: Math.random() < .5 ? -1 : 1 };
-  if (boss) { boss.yell = (boss.yell || 0) - dt; if ((boss.t -= dt) <= 0) boss = null; }
+  if (!boss && timeLeft < ROUND - 8 && Math.random() < dt * (.12 + .15 * prog)) boss = { warn: .5, t: 1.6 + Math.random() * 1.2, side: Math.random() < .5 ? -1 : 1 };
+  if (boss) {
+    if (boss.warn > 0) boss.warn -= dt; // once yarim saniye kenardan kafasini uzatir (uyari)
+    else { boss.yell = (boss.yell || 0) - dt; if ((boss.t -= dt) <= 0) boss = null; }
+  }
   for (const d of desks) {
     if (d.hitT > 0) { d.hitT -= dt; if (d.hitT <= 0) d.up = 0; }
     else if (d.up > 0) {
@@ -296,7 +299,7 @@ function tap(x, y) {
     const r = deskRect(i);
     if (x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h) continue;
     const d = desks[i];
-    if (boss) {
+    if (boss && boss.warn <= 0) {
       lives--; combo = 0; teleport(i, 'Pardon Gülçin Hanım!', 1.2);
       boss.yell = 1.2; state = 'caught'; caughtT = 1.2;
       return;
@@ -404,7 +407,13 @@ function draw(t) {
   desks.forEach((d, i) => drawDesk(i, d, t));
   drawDividers();
   hud();
-  if (boss) {
+  if (boss && boss.warn > 0) { // kenardan kafa uzatma: yari gorunur, egik
+    const bs = g.sinemH * .62, by = g.floor - bs * .95, ex = boss.side < 0 ? 0 : W;
+    ctx.save(); ctx.translate(ex, by); ctx.rotate(-boss.side * .35);
+    drawBoss(-boss.side * bs * .05, 0, bs, 1);
+    ctx.restore();
+    txt('?', ex - boss.side * bs * .45, by - bs * .35, 30, '#c0392b');
+  } else if (boss) {
     const bs = g.sinemH * .62, x = boss.side < 0 ? bs * .6 : W - bs * .6, by = g.floor - bs * .95;
     drawBoss(x, by, bs, Math.min(1, boss.t * 3));
     if (boss.yell > 0) bubble('Sinem Hanım, odama!', x, by - bs * .3, Math.min(16, W / 22));
