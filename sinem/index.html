@@ -203,6 +203,25 @@ let score = 0, best = 0, lives = 1, timeLeft = 60, combo = 0, desks = [], nextPo
 try { best = +localStorage.getItem('sinemBest') || 0; } catch (e) {}
 const ROUND = 60;
 
+// --- ortak puan siralamasi (Supabase; tablo/fonksiyonlar: Oyunlar/skor-tablosu.sql) ---
+const SB = 'https://wcnlqjvqyuskvcrqxwyt.supabase.co/rest/v1/rpc/', SBKEY = 'sb_publishable_PD8ZZx820vAwoC604-TX5g_zpQsfBoS';
+let lb = null, lbErr = false, isim = '', overAt = 0, submitted = false;
+try { isim = localStorage.getItem('sinemIsim') || ''; } catch (e) {}
+function rpc(fn, body) {
+  return fetch(SB + fn, { method: 'POST', headers: { apikey: SBKEY, Authorization: 'Bearer ' + SBKEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(r => { if (!r.ok) throw r.status; return r.status === 204 ? null : r.json(); });
+}
+function loadLb() { rpc('skor_listesi', { p_oyun: 'sinem' }).then(d => { lb = d; lbErr = false; }).catch(() => { lbErr = true; }); }
+function askName() {
+  const n = (prompt('Sıralama için adın?', isim) || '').trim().slice(0, 20);
+  if (n) { isim = n; try { localStorage.setItem('sinemIsim', n); } catch (e) {} }
+}
+function submit() {
+  submitted = true;
+  rpc('skor_ekle', { p_oyun: 'sinem', p_isim: isim, p_skor: score }).then(loadLb, () => { lbErr = true; });
+}
+loadLb();
+
 function geom() {
   const top = 64, sinemH = Math.min(240, H * .3), areaH = H - top - sinemH;
   const cw = W / 2, ch = areaH / 2, s = Math.min(cw * .62, ch * .62);
@@ -242,13 +261,22 @@ function update(dt) {
     d.rise += (want - d.rise) * Math.min(1, dt * 14);
   }
   if (timeLeft <= 0 || (lives <= 0 && !(boss && boss.yell > 0))) { // yakalaninca once "odama!" sahnesi
-    state = 'over'; boss = null;
+    state = 'over'; boss = null; overAt = performance.now(); submitted = false;
     if (score > best) { best = score; try { localStorage.setItem('sinemBest', best); } catch (e) {} }
+    if (score > 0 && isim) submit(); else loadLb();
   }
 }
 
 function tap(x, y) {
-  if (state !== 'play') { start(); return; }
+  if (state === 'over') {
+    if (performance.now() - overAt < 800) return; // yanlislikla hemen yeniden baslamasin
+    if (score > 0 && !submitted) { askName(); if (isim) { submit(); return; } }
+    start(); return;
+  }
+  if (state === 'menu') {
+    if (Math.abs(y - (H * .79 + 124)) < 18) { askName(); return; } // isim degistir
+    start(); return;
+  }
   for (let i = 0; i < 4; i++) {
     const r = deskRect(i);
     if (x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h) continue;
@@ -352,6 +380,7 @@ function draw(t) {
     txt('Gülçin Hanım bakarken dokunma: tek can!', W / 2, H * .79 + 26, Math.min(18, W / 22), '#c0392b', 'center', '600');
     txt('Başlamak için dokun', W / 2, H * .79 + 70, 20, '#1e8449');
     if (best) txt('En iyi: ' + best, W / 2, H * .79 + 100, 16, '#555', 'center', '600');
+    txt(isim ? 'İsim: ' + isim + '  (değiştir)' : 'İsim gir (sıralama için)', W / 2, H * .79 + 124, 15, '#2147a8', 'center', '600');
     return;
   }
   desks.forEach((d, i) => drawDesk(i, d, t));
@@ -371,12 +400,25 @@ function draw(t) {
   drawSparks();
   pops.forEach(p => txt(p.text, p.x, p.y - (1 - p.t) * 30, 22, p.c));
   if (state === 'over') {
-    ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(10,12,30,.9)'; ctx.fillRect(0, 0, W, H);
     const unvan = score < 150 ? 'Stajyer' : score < 400 ? 'Ofis Neşesi' : score < 800 ? 'Mesai Terörü' : 'Ofisin Kabusu';
-    txt(lives <= 0 ? 'Gülçin Hanım\'ın odasına!' : 'Mesai bitti!', W / 2, H * .35, Math.min(36, W / 11), '#fff');
-    txt('Skor: ' + score + '   En iyi: ' + best, W / 2, H * .35 + 44, 20, '#ffd27a');
-    txt('Unvan: ' + unvan, W / 2, H * .35 + 80, 22, '#7fe0a0');
-    txt('Tekrar için dokun', W / 2, H * .35 + 130, 18, '#fff', 'center', '600');
+    const y0 = Math.max(110, H * .14);
+    txt(lives <= 0 ? 'Gülçin Hanım\'ın odasına!' : 'Mesai bitti!', W / 2, y0, Math.min(34, W / 12), '#fff');
+    txt('Skor: ' + score + '   En iyi: ' + best, W / 2, y0 + 38, 20, '#ffd27a');
+    txt('Unvan: ' + unvan, W / 2, y0 + 70, 20, '#7fe0a0');
+    if (score > 0 && !submitted) txt('Sıralamaya girmek için dokun, adını yaz', W / 2, y0 + 104, 15, '#ffd27a', 'center', '600');
+    // ortak siralama
+    let ly = y0 + 145;
+    txt('🏆 SIRALAMA', W / 2, ly, 20, '#fff'); ly += 30;
+    if (lbErr) txt('Sıralama yüklenemedi', W / 2, ly, 15, '#f99', 'center', '600');
+    else if (!lb) txt('Yükleniyor...', W / 2, ly, 15, '#ccc', 'center', '600');
+    else if (!lb.length) txt('Henüz kimse yok, ilk sen ol!', W / 2, ly, 15, '#ccc', 'center', '600');
+    else lb.forEach((r, k) => {
+      const me = r.isim === isim, c = me ? '#ffd27a' : '#fff', yy = ly + k * 25;
+      txt((k + 1) + '. ' + r.isim, W / 2 - 110, yy, 17, c, 'left', me ? 'bold' : '600');
+      txt(String(r.skor), W / 2 + 110, yy, 17, c, 'right', me ? 'bold' : '600');
+    });
+    txt('Tekrar için dokun', W / 2, H - 28, 18, '#fff', 'center', '600');
   }
 }
 
