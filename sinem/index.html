@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Sinem Hanım</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #e9e4dc; overflow: hidden; touch-action: none; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Sinem Hanim: yonca masadaki 4 kisiyi kafasini kaldirinca durt (kostebek vurma).
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+let W = 0, H = 0, state = 'menu';
+
+const WORKERS = [
+  { ad: 'Osman', hair: 'kasket', hc: '#1a1a1a', skin: '#c9946b', beard: 'tam', top: '#161616',
+    tepki: ['Abla şu an olmaz!', 'Kulaklığı görmüyor musun?', 'Off ya!'] },
+  { ad: 'Oğuz', hair: 'kisa', hc: '#2a211c', skin: '#cf9e7a', beard: 'kirli', top: '#f1f1f1',
+    tepki: ['Yine mi?!', 'Mail at, mail!', 'Allah\'ım sabır...'] },
+  { ad: 'Berke', hair: 'uzun', hc: '#6b4a2e', skin: '#e2b896', beard: 'keci', top: '#28325a',
+    tepki: ['Ne oldu yine?', 'Şu raporu bitireyim...', '...(derin nefes)'] },
+  { ad: 'Mete', hair: 'daginik', hc: '#1c1714', skin: '#d6a37f', beard: 'kirli', top: '#b8a68e', zip: true,
+    tepki: ['Teklif bekliyorum ya!', 'PO açıyorum şu an!', 'Maliyet hesabı yarım kaldı!'] },
+];
+const SINEM = ['Bir saniyen var mı?', 'Çay demledim, içer misin?', 'Bu Excel neden açılmıyor?', 'Toplantı 5 dk sonra!',
+  'Şifremi yine unuttum...', 'Yazıcı kağıt sıkıştırdı!', 'Bu maili sen mi attın?', 'Öğlen ne yiyoruz?',
+  'SAP\'te bu ekran neydi?', 'Kargo geldi mi?', 'Bak bu ceketi yeni aldım!', 'Klima çok soğuk değil mi?'];
+const pick = a => a[Math.random() * a.length | 0];
+
+// --- cizim yardimcilari ---
+function ell(x, y, rx, ry, c) { ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); }
+function rr(x, y, w, h, r, c) { ctx.fillStyle = c; ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+function txt(t, x, y, size, color, align = 'center', weight = 'bold') {
+  ctx.font = `${weight} ${size}px ${FONT}`; ctx.textAlign = align; ctx.fillStyle = color; ctx.fillText(t, x, y);
+}
+function bubble(t, x, y, size, tailDown = true) {
+  ctx.font = `bold ${size}px ${FONT}`;
+  const w = Math.min(W * .9, ctx.measureText(t).width + size * 1.4), h = size * 2;
+  x = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, x));
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(x - w / 2, y - h, w, h, h / 2); ctx.fill(); ctx.stroke();
+  if (tailDown) { ctx.beginPath(); ctx.moveTo(x - 8, y - 1); ctx.lineTo(x, y + 10); ctx.lineTo(x + 8, y - 1); ctx.fill(); }
+  txt(t, x, y - h / 2 + size * .35, size, '#222');
+}
+
+// calisan: gogusten yukari, (x,y) = kafa merkezi
+function drawWorker(p, x, y, s, mood) {
+  const hr = s * .2;
+  const skin = mood === 'kizgin' ? '#e0705a' : p.skin;
+  // arka sac
+  if (p.hair === 'uzun') rr(x - hr * 1.15, y - hr * .4, hr * 2.3, s * .62, hr * .5, p.hc);
+  if (p.hair === 'kivircik') {
+    ctx.fillStyle = p.hc;
+    for (let i = 0; i <= 14; i++) { const a = Math.PI * (.85 + 1.3 * i / 14); ell(x + Math.cos(a) * hr * 1.08, y + Math.sin(a) * hr * 1.15, s * .075, s * .075, p.hc); }
+    for (let k = 0; k < 4; k++) for (const sd of [-1, 1]) ell(x + sd * hr * 1.1, y + hr * .2 + k * s * .08, s * .07, s * .07, p.hc);
+  }
+  // govde
+  rr(x - s * .38, y + s * .3, s * .76, s * .6, [s * .17, s * .17, 0, 0], p.top);
+  if (p.top === '#f1f1f1') { ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1; ctx.stroke(); }
+  if (p.zip) { // fermuarli kazak: beyaz tisort yaka + fermuar
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(x - s * .08, y + s * .3); ctx.lineTo(x + s * .08, y + s * .3); ctx.lineTo(x, y + s * .44); ctx.fill();
+    ctx.strokeStyle = '#999'; ctx.lineWidth = Math.max(1.5, s * .015); ctx.beginPath(); ctx.moveTo(x, y + s * .44); ctx.lineTo(x, y + s * .9); ctx.stroke();
+    ctx.strokeStyle = '#a3917a'; ctx.lineWidth = 1;
+    for (let k = -3; k <= 3; k++) { ctx.beginPath(); ctx.moveTo(x + k * s * .1, y + s * .5); ctx.lineTo(x + k * s * .1, y + s * .9); ctx.stroke(); }
+  }
+  if (p.hair === 'uzun') { rr(x - hr * 1.15, y + s * .3, hr * .55, s * .3, hr * .2, p.hc); rr(x + hr * .6, y + s * .3, hr * .55, s * .3, hr * .2, p.hc); }
+  // boyun + kafa
+  ctx.fillStyle = skin; ctx.fillRect(x - hr * .4, y + hr * .8, hr * .8, s * .14);
+  ell(x, y, hr, hr * 1.2, skin);
+  // on sac / sapka
+  if (p.hair === 'kasket') {
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(x, y - hr * .45, hr * 1.08, hr * .85, 0, Math.PI, 0); ctx.fill();
+    rr(x - hr * 1.25, y - hr * .55, hr * 2.5, hr * .22, hr * .1, '#111');
+  } else if (p.hair === 'kisa' || p.hair === 'uzun') {
+    ctx.fillStyle = p.hc; ctx.beginPath(); ctx.ellipse(x, y - hr * .5, hr * 1.06, hr * .78, 0, Math.PI, 0); ctx.fill();
+  } else if (p.hair === 'daginik') {
+    ctx.fillStyle = p.hc; ctx.beginPath(); ctx.ellipse(x, y - hr * .55, hr * 1.04, hr * .72, 0, Math.PI, 0); ctx.fill();
+    for (let i = 0; i < 7; i++) { // yukari kalkik tutamlar
+      const a = Math.PI * (1.15 + .7 * i / 6), bx = x + Math.cos(a) * hr * .8, by = y - hr * .55 + Math.sin(a) * hr * .6;
+      ctx.beginPath(); ctx.moveTo(bx - hr * .18, by + hr * .1); ctx.lineTo(bx + Math.cos(a) * hr * .35 + (i % 2 ? hr * .12 : -hr * .12), by + Math.sin(a) * hr * .45); ctx.lineTo(bx + hr * .18, by + hr * .1); ctx.fill();
+    }
+  } else if (p.hair === 'kivircik') {
+    for (let i = 0; i <= 8; i++) { const a = Math.PI * (1.08 + .84 * i / 8); ell(x + Math.cos(a) * hr * .95, y + Math.sin(a) * hr * 1.05, s * .065, s * .065, p.hc); }
+  }
+  // sakal
+  if (p.beard === 'tam') { ctx.fillStyle = p.hc; ctx.beginPath(); ctx.ellipse(x, y + hr * .55, hr * .95, hr * .7, 0, 0, Math.PI); ctx.fill(); }
+  if (p.beard === 'kirli') { ctx.fillStyle = 'rgba(40,30,25,.35)'; ctx.beginPath(); ctx.ellipse(x, y + hr * .55, hr * .92, hr * .65, 0, 0, Math.PI); ctx.fill(); }
+  if (p.beard === 'keci') { ell(x, y + hr * .5, hr * .4, hr * .11, '#4a3b30'); ell(x, y + hr * .98, hr * .25, hr * .3, '#4a3b30'); }
+  // yuz
+  const ey = y - hr * .05;
+  if (mood === 'kizgin') {
+    ctx.strokeStyle = '#222'; ctx.lineWidth = Math.max(2, s * .025);
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x + sd * hr * .62, ey - hr * .35); ctx.lineTo(x + sd * hr * .18, ey - hr * .18); ctx.stroke(); }
+  }
+  for (const sd of [-1, 1]) ell(x + sd * hr * .4, ey, hr * .08, mood === 'kizgin' ? hr * .05 : hr * .08, '#111');
+  ctx.strokeStyle = '#5a2a2a'; ctx.lineWidth = Math.max(1.5, s * .018);
+  ctx.beginPath();
+  if (mood === 'kizgin') ctx.arc(x, y + hr * .85, hr * .22, Math.PI + .3, -.3); else ctx.arc(x, y + hr * .55, hr * .2, .3, Math.PI - .3);
+  ctx.stroke();
+  if (p.glas === 'yesil') {
+    ctx.save(); ctx.shadowColor = '#0f0'; ctx.shadowBlur = s * .2;
+    ctx.fillStyle = 'rgba(0,255,80,.4)'; ctx.strokeStyle = '#2c2'; ctx.lineWidth = Math.max(1.5, s * .02);
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.roundRect(x + sd * hr * .4 - hr * .26, ey - hr * .17, hr * .52, hr * .34, 3); ctx.fill(); ctx.stroke(); }
+    ctx.restore();
+  }
+  // ofke dumani
+  if (mood === 'kizgin') {
+    const t = performance.now() / 300;
+    for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) ell(x + sd * hr * (1.3 + k * .25), y - hr * (1 + k * .45) - (t % 1) * hr * .3, hr * (.18 + k * .06), hr * (.18 + k * .06), 'rgba(255,255,255,.85)');
+  }
+}
+
+// Sinem Hanim: tam boy, (x, ayak) tabanli, h = boy
+function drawSinem(x, foot, h, wave) {
+  const s = h, top = foot - s, hr = s * .085;
+  const hy = top + hr * 1.3;
+  rr(x - hr * 1.25, hy - hr * .6, hr * 2.5, s * .3, hr * .6, '#7a5236'); // arka sac
+  // ayaklar + pantolon
+  rr(x - s * .14, foot - s * .045, s * .12, s * .045, s * .02, '#f4f1ea'); rr(x + s * .02, foot - s * .045, s * .12, s * .045, s * .02, '#f4f1ea');
+  ctx.fillStyle = '#1d2244'; ctx.beginPath();
+  ctx.moveTo(x - s * .13, top + s * .5); ctx.lineTo(x + s * .13, top + s * .5); ctx.lineTo(x + s * .15, foot - s * .04);
+  ctx.lineTo(x + s * .01, foot - s * .04); ctx.lineTo(x, top + s * .62); ctx.lineTo(x - s * .01, foot - s * .04); ctx.lineTo(x - s * .15, foot - s * .04); ctx.fill();
+  // ic + kemer
+  rr(x - s * .1, top + s * .2, s * .2, s * .32, 4, '#14141c');
+  rr(x - s * .1, top + s * .43, s * .2, s * .025, 2, '#111'); rr(x - s * .02, top + s * .43, s * .04, s * .025, 2, '#d4af37');
+  // blazer
+  ctx.fillStyle = '#1b1b1f';
+  for (const sd of [-1, 1]) {
+    ctx.beginPath(); ctx.moveTo(x + sd * s * .05, top + s * .2); ctx.lineTo(x + sd * s * .19, top + s * .21);
+    ctx.lineTo(x + sd * s * .2, top + s * .58); ctx.lineTo(x + sd * s * .06, top + s * .56); ctx.fill();
+  }
+  // kollar (biri sallaniyor)
+  ctx.strokeStyle = '#1b1b1f'; ctx.lineCap = 'round'; ctx.lineWidth = s * .07;
+  ctx.beginPath(); ctx.moveTo(x - s * .18, top + s * .24); ctx.lineTo(x - s * .22, top + s * .52); ctx.stroke();
+  const ang = wave ? 2.4 + Math.sin(performance.now() / 120) * .3 : .2; // asagidan olculen aci: 2.4 = sag yukari el sallama
+  const ex = x + s * .18 + Math.sin(ang) * s * .28, ey = top + s * .24 + Math.cos(ang) * s * .28;
+  ctx.beginPath(); ctx.moveTo(x + s * .18, top + s * .24); ctx.lineTo(ex, ey); ctx.stroke();
+  ell(ex, ey, s * .03, s * .03, '#f0c8a8'); ell(x - s * .22, top + s * .53, s * .03, s * .03, '#f0c8a8');
+  // boyun, yuz, kolye
+  ctx.fillStyle = '#f0c8a8'; ctx.fillRect(x - hr * .35, hy + hr, hr * .7, s * .06);
+  ell(x, hy, hr, hr * 1.2, '#f0c8a8');
+  ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, top + s * .19, s * .035, .3, Math.PI - .3); ctx.stroke();
+  // on sac (uzun, ortadan ayrik)
+  ctx.fillStyle = '#7a5236';
+  ctx.beginPath(); ctx.ellipse(x - hr * .45, hy - hr * .55, hr * .7, hr * .6, -.3, Math.PI, 0); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + hr * .45, hy - hr * .55, hr * .7, hr * .6, .3, Math.PI, 0); ctx.fill();
+  rr(x - hr * 1.2, hy - hr * .5, hr * .45, s * .26, hr * .3, '#7a5236'); rr(x + hr * .75, hy - hr * .5, hr * .45, s * .26, hr * .3, '#7a5236');
+  // yuz detay
+  for (const sd of [-1, 1]) ell(x + sd * hr * .38, hy - hr * .05, hr * .08, hr * .09, '#2a1a12');
+  ell(x - hr * .55, hy + hr * .35, hr * .15, hr * .09, 'rgba(230,120,120,.4)'); ell(x + hr * .55, hy + hr * .35, hr * .15, hr * .09, 'rgba(230,120,120,.4)');
+  ctx.fillStyle = '#b5405a'; ctx.beginPath(); ctx.arc(x, hy + hr * .45, hr * .3, .15, Math.PI - .15); ctx.fill();
+}
+
+// Gulcin Hanim (mudur): toplu kul rengi sac + topuz, koyu gozluk, siyah-beyaz zikzak kazak, eller belde
+function drawBoss(x, y, s, alpha) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  const hr = s * .2, skin = '#e6bb9c';
+  // kollar (eller belde: dirsekler disari)
+  ctx.strokeStyle = '#111'; ctx.lineCap = 'round'; ctx.lineWidth = s * .13;
+  for (const sd of [-1, 1]) {
+    ctx.beginPath(); ctx.moveTo(x + sd * s * .3, y + s * .36); ctx.lineTo(x + sd * s * .55, y + s * .62); ctx.lineTo(x + sd * s * .28, y + s * .82); ctx.stroke();
+  }
+  // govde: siyah, beyaz V cizgiler
+  rr(x - s * .36, y + s * .3, s * .72, s * .62, [s * .16, s * .16, 0, 0], '#121212');
+  ctx.save(); ctx.beginPath(); ctx.roundRect(x - s * .36, y + s * .3, s * .72, s * .62, [s * .16, s * .16, 0, 0]); ctx.clip();
+  ctx.strokeStyle = '#eee'; ctx.lineWidth = s * .035;
+  for (let k = 0; k < 6; k++) {
+    const vy = y + s * (.34 + k * .1);
+    ctx.beginPath(); ctx.moveTo(x - s * .4, vy - s * .12); ctx.lineTo(x, vy + s * .12); ctx.lineTo(x + s * .4, vy - s * .12); ctx.stroke();
+  }
+  ctx.restore();
+  // kolye
+  ctx.strokeStyle = '#c0c0c0'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x - s * .07, y + s * .3); ctx.lineTo(x, y + s * .55); ctx.lineTo(x + s * .07, y + s * .3); ctx.stroke();
+  ell(x, y + s * .56, s * .02, s * .03, '#c0c0c0');
+  // boyun, kafa, toplu sac + topuz
+  ctx.fillStyle = skin; ctx.fillRect(x - hr * .4, y + hr * .8, hr * .8, s * .14);
+  ell(x, y - hr * 1.25, hr * .38, hr * .3, '#a89c8c');
+  ell(x, y, hr, hr * 1.2, skin);
+  ctx.fillStyle = '#a89c8c'; ctx.beginPath(); ctx.ellipse(x, y - hr * .4, hr * 1.02, hr * .88, 0, Math.PI, 0); ctx.fill();
+  ctx.strokeStyle = '#8a7e70'; ctx.lineWidth = 1;
+  for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.moveTo(x + k * hr * .25, y - hr * .45); ctx.quadraticCurveTo(x + k * hr * .12, y - hr * 1.1, x, y - hr * 1.25); ctx.stroke(); }
+  // yuz: koyu gozluk, kalkik kas, konusan agiz
+  const ey = y - hr * .05;
+  ctx.strokeStyle = '#333'; ctx.lineWidth = Math.max(1.5, s * .02);
+  for (const sd of [-1, 1]) {
+    ell(x + sd * hr * .4, ey, hr * .07, hr * .07, '#111');
+    ctx.beginPath(); ctx.roundRect(x + sd * hr * .4 - hr * .27, ey - hr * .2, hr * .54, hr * .38, hr * .15); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + sd * hr * .62, ey - hr * .38); ctx.lineTo(x + sd * hr * .2, ey - hr * .3); ctx.stroke();
+  }
+  ell(x, y + hr * .62, hr * .2, hr * .12, '#7a3a3a');
+  ctx.restore();
+}
+
+// --- oyun durumu ---
+let score = 0, best = 0, lives = 3, timeLeft = 60, combo = 0, desks = [], nextPop = 0, boss = null, pops = [], sinem = { at: -1, say: '', sayT: 0 };
+try { best = +localStorage.getItem('sinemBest') || 0; } catch (e) {}
+const ROUND = 60;
+
+function geom() {
+  const top = 64, sinemH = Math.min(240, H * .3), areaH = H - top - sinemH;
+  const cw = W / 2, ch = areaH / 2, s = Math.min(cw * .62, ch * .62);
+  return { top, sinemH, cw, ch, s, floor: H - 12 };
+}
+function deskRect(i) {
+  const g = geom(), c = i % 2, r = i / 2 | 0;
+  const x = c * g.cw, y = g.top + r * g.ch, deskTop = y + g.ch * .66;
+  return { x, y, w: g.cw, h: g.ch, cx: x + g.cw / 2, deskTop, s: g.s };
+}
+
+function start() {
+  score = 0; lives = 3; timeLeft = ROUND; combo = 0; boss = null; pops = []; nextPop = .6;
+  desks = WORKERS.map(w => ({ w, rise: 0, up: 0, hitT: 0, say: '' }));
+  sinem.at = -1; sinem.say = ''; sinem.sayT = 0; sparks = []; state = 'play';
+}
+
+function update(dt) {
+  sinem.sayT -= dt;
+  if (sinem.sayT <= 0 && sinem.at >= 0) teleport(-1, '', 0); // yerine geri isinlan
+  sparks.forEach(p => p.t -= dt); sparks = sparks.filter(p => p.t > 0); pops.forEach(p => p.t -= dt); pops = pops.filter(p => p.t > 0);
+  if (state !== 'play') return;
+  timeLeft -= dt;
+  const prog = 1 - timeLeft / ROUND;
+  nextPop -= dt;
+  if (nextPop <= 0) {
+    const free = desks.filter(d => d.up <= 0 && d.hitT <= 0);
+    if (free.length) { const d = pick(free); d.up = 1.4 - .75 * prog; }
+    nextPop = (1.0 - .5 * prog) * (.7 + Math.random() * .6);
+  }
+  if (!boss && timeLeft < ROUND - 8 && Math.random() < dt * (.12 + .15 * prog)) boss = { t: 1.6 + Math.random() * 1.2, side: Math.random() < .5 ? -1 : 1 };
+  if (boss) { boss.yell = (boss.yell || 0) - dt; if ((boss.t -= dt) <= 0) boss = null; }
+  for (const d of desks) {
+    if (d.hitT > 0) { d.hitT -= dt; if (d.hitT <= 0) d.up = 0; }
+    else if (d.up > 0) d.up -= dt;
+    const want = d.up > 0 || d.hitT > 0 ? 1 : 0;
+    d.rise += (want - d.rise) * Math.min(1, dt * 14);
+  }
+  if (timeLeft <= 0 || lives <= 0) {
+    state = 'over'; boss = null;
+    if (score > best) { best = score; try { localStorage.setItem('sinemBest', best); } catch (e) {} }
+  }
+}
+
+function tap(x, y) {
+  if (state !== 'play') { start(); return; }
+  for (let i = 0; i < 4; i++) {
+    const r = deskRect(i);
+    if (x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h) continue;
+    const d = desks[i];
+    if (boss) {
+      lives--; combo = 0; teleport(i, 'Pardon Gülçin Hanım!', 1.2);
+      boss.yell = 1.4; boss.t = Math.max(boss.t, 1.4);
+      return;
+    }
+    if (d.up > 0 && d.hitT <= 0 && d.rise > .4) {
+      combo++;
+      const pts = 10 * Math.min(5, combo);
+      score += pts; d.hitT = 1.3; d.say = pick(d.w.tepki);
+      const ad = d.w.ad;
+      teleport(i, Math.random() < .6 ? ad + ' beeey!' : ad + ' beeey, ' + pick(SINEM).toLowerCase(), 1.3);
+      pops.push({ text: '+' + pts + (combo > 1 ? '  x' + Math.min(5, combo) : ''), x: r.cx, y: r.y + 30, t: .8, c: '#1e8449' });
+    } else { combo = 0; pops.push({ text: 'Kaçtı!', x: r.cx, y: r.y + 30, t: .6, c: '#888' }); }
+    return;
+  }
+}
+
+// isinlanma: Sinem masanin yanina aninda gecer, isik halkasi birakir
+let sparks = [];
+function sinemPos(at) {
+  const g = geom();
+  if (at < 0) return { x: W / 2, foot: g.floor, h: g.sinemH * .92 };
+  const r = deskRect(at);
+  return { x: at % 2 ? r.x + r.w * .86 : r.x + r.w * .14, foot: r.deskTop + r.h * .32, h: r.s * 1.55 };
+}
+function teleport(i, say, dur) {
+  const a = sinemPos(sinem.at), b = sinemPos(i);
+  sparks.push({ x: a.x, y: a.foot - a.h / 2, t: .4 }, { x: b.x, y: b.foot - b.h / 2, t: .4 });
+  sinem.at = i; sinem.say = say; sinem.sayT = dur;
+}
+function drawSparks() {
+  for (const p of sparks) {
+    const k = 1 - p.t / .4, R = 20 + k * 60;
+    ctx.strokeStyle = `rgba(170,90,255,${p.t / .4})`; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,215,90,${p.t / .4})`; ctx.lineWidth = 3;
+    for (let j = 0; j < 8; j++) {
+      const a = j * Math.PI / 4 + k;
+      ctx.beginPath(); ctx.moveTo(p.x + Math.cos(a) * R * .5, p.y + Math.sin(a) * R * .5); ctx.lineTo(p.x + Math.cos(a) * R * 1.1, p.y + Math.sin(a) * R * 1.1); ctx.stroke();
+    }
+  }
+}
+
+// --- cizim ---
+function drawOffice() {
+  ctx.fillStyle = '#efeae2'; ctx.fillRect(0, 0, W, H);
+  const g = geom();
+  ctx.fillStyle = '#d8c3a0'; ctx.fillRect(0, g.top + g.ch * 2, W, H); // parke
+  ctx.strokeStyle = 'rgba(150,120,80,.25)'; ctx.lineWidth = 1;
+  for (let y = g.top + g.ch * 2; y < H; y += 18) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  if (state === 'menu') return;
+  // saat
+  ell(W - 34, 34 + 64, 20, 20, '#ccc'); ell(W - 34, 34 + 64, 17, 17, '#fff');
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(W - 34, 98); ctx.lineTo(W - 34, 86); ctx.moveTo(W - 34, 98); ctx.lineTo(W - 26, 101); ctx.stroke();
+}
+
+function drawDesk(i, d, t) {
+  const r = deskRect(i), s = r.s;
+  // kisi (masa arkasinda yukselir)
+  const headUp = r.deskTop - s * .62, headDown = r.deskTop - s * .12;
+  const hy = headDown + (headUp - headDown) * d.rise;
+  ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.deskTop - r.y); ctx.clip();
+  drawWorker(d.w, r.cx, hy, s, d.hitT > 0 ? 'kizgin' : 'normal');
+  ctx.restore();
+  // laptop arkasi + masa
+  rr(r.cx - s * .42, r.deskTop - s * .34, s * .84, s * .34, 4, '#9aa0a6');
+  ell(r.cx, r.deskTop - s * .17, s * .06, s * .06, '#b8bdc2');
+  rr(r.x + 6, r.deskTop, r.w - 12, r.h * .3, 4, '#fbfbfb');
+  ctx.fillStyle = '#ddd'; ctx.fillRect(r.x + 6, r.deskTop + r.h * .3 - 6, r.w - 12, 6);
+  txt(d.w.ad, r.cx, r.deskTop + r.h * .2, Math.min(14, r.w / 11), '#556', 'center', '600');
+  if (d.hitT > 0 && d.hitT < .7) bubble(d.say, r.cx, hy - s * .32, Math.min(15, r.w / 12)); // once Sinem konusur, sonra cevap
+}
+
+function drawDividers() {
+  const g = geom();
+  ctx.fillStyle = '#2147a8';
+  ctx.fillRect(W / 2 - 5, g.top + 6, 10, g.ch * 2 - 12);
+  ctx.fillRect(10, g.top + g.ch - 5, W - 20, 10);
+  ctx.fillStyle = '#9aa'; ctx.fillRect(W / 2 - 5, g.top + 6, 10, 3); ctx.fillRect(10, g.top + g.ch - 5, W - 20, 2);
+}
+
+function hud() {
+  rr(0, 0, W, 58, 0, '#1d2244');
+  txt('SKOR ' + score, 12, 37, 20, '#fff', 'left');
+  txt(Math.max(0, timeLeft).toFixed(0) + ' sn', W / 2, 37, 20, timeLeft < 10 ? '#ff6b6b' : '#fff');
+  txt('☕'.repeat(Math.max(0, lives)), W - 12, 37, 20, '#fff', 'right', 'normal');
+}
+
+function draw(t) {
+  drawOffice();
+  const g = geom();
+  if (state === 'menu') {
+    txt('SİNEM HANIM', W / 2, H * .14, Math.min(46, W / 8), '#1d2244');
+    txt('Ofisi rahatsız etme simülatörü', W / 2, H * .14 + 34, Math.min(18, W / 22), '#555', 'center', '600');
+    drawSinem(W / 2, H * .72, Math.min(H * .45, W * .9), true);
+    txt('Kafasını kaldıranı dürt!', W / 2, H * .79, Math.min(18, W / 22), '#333', 'center', '600');
+    txt('Gülçin Hanım bakarken dokunma.', W / 2, H * .79 + 26, Math.min(18, W / 22), '#c0392b', 'center', '600');
+    txt('Başlamak için dokun', W / 2, H * .79 + 70, 20, '#1e8449');
+    if (best) txt('En iyi: ' + best, W / 2, H * .79 + 100, 16, '#555', 'center', '600');
+    return;
+  }
+  desks.forEach((d, i) => drawDesk(i, d, t));
+  drawDividers();
+  if (boss) {
+    const bs = g.sinemH * .62, x = boss.side < 0 ? bs * .6 : W - bs * .6, by = g.floor - bs * .95;
+    drawBoss(x, by, bs, Math.min(1, boss.t * 3));
+    if (boss.yell > 0) bubble('Sinem Hanım, odama!', x, by - bs * .3, Math.min(16, W / 22));
+    rr(W / 2 - 140, g.top + g.ch - 18, 280, 34, 17, '#c0392b');
+    txt('GÜLÇİN HANIM BAKIYOR!', W / 2, g.top + g.ch + 6, Math.min(18, W / 20), '#fff');
+  }
+  // Sinem (masanin yaninda ya da altta)
+  const sp = sinemPos(sinem.at);
+  drawSinem(sp.x, sp.foot, sp.h, sinem.sayT > 0);
+  if ((sinem.sayT > .7 || sinem.at < 0 || !desks[sinem.at] || desks[sinem.at].hitT <= 0) && sinem.sayT > 0 && sinem.say) bubble(sinem.say, sp.x, sp.foot - sp.h - 6, Math.min(16, W / 22));
+  drawSparks();
+  pops.forEach(p => txt(p.text, p.x, p.y - (1 - p.t) * 30, 22, p.c));
+  hud();
+  if (state === 'over') {
+    ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(0, 0, W, H);
+    const unvan = score < 150 ? 'Stajyer' : score < 400 ? 'Ofis Neşesi' : score < 800 ? 'Mesai Terörü' : 'Ofisin Kabusu';
+    txt(lives <= 0 ? 'Gülçin Hanım\'ın odasına!' : 'Mesai bitti!', W / 2, H * .35, Math.min(36, W / 11), '#fff');
+    txt('Skor: ' + score + '   En iyi: ' + best, W / 2, H * .35 + 44, 20, '#ffd27a');
+    txt('Unvan: ' + unvan, W / 2, H * .35 + 80, 22, '#7fe0a0');
+    txt('Tekrar için dokun', W / 2, H * .35 + 130, 18, '#fff', 'center', '600');
+  }
+}
+
+function resize() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = innerWidth; H = innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+let last = 0;
+function loop(ms) {
+  const t = ms / 1000, dt = Math.min(.05, t - last || 0); last = t;
+  update(dt); draw(t); requestAnimationFrame(loop);
+}
+cv.addEventListener('pointerdown', e => tap(e.clientX, e.clientY));
+addEventListener('resize', resize);
+resize(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>
