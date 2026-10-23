@@ -266,7 +266,7 @@ function update(dt) {
     if (d.hitT > 0) { d.hitT -= dt; if (d.hitT <= 0) d.up = 0; }
     else if (d.up > 0) {
       d.up -= dt;
-      if (d.up <= 0) { // dokunulmadan kafasini indirdi: kombo bozulur
+      if (d.up <= 0 && !boss) { // dokunulmadan kafasini indirdi: kombo bozulur (Gulcin Hanim varken degil)
         if (combo > 1) pops.push({ text: 'Kombo bozuldu!', x: deskRect(desks.indexOf(d)).cx, y: deskRect(desks.indexOf(d)).y + 30, t: .8, c: '#c0392b' });
         combo = 0;
       }
